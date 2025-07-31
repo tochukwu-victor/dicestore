@@ -78,7 +78,7 @@ public class OpenApi30Config {
                 .contact(new Contact()
                         .name("Dicestore Support Team")
                         .url("https://dicestore.com")
-                        .email("support@dicestore.com"))
+                        .email("TOCHUKWU.VICTORUK@gmail.com"))
                 .license(new License()
                         .name("Apache 2.0")
                         .url("https://www.apache.org/licenses/LICENSE-2.0"));
