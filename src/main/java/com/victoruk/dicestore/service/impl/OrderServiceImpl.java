@@ -29,7 +29,7 @@ public class OrderServiceImpl implements IOrderService {
     private final ProfileServiceImpl profileService;
 
     @Override
-    public void createOrder(OrderRequestDto orderRequest) {
+    public void createOrder() {
         Customer customer = profileService.getAuthenticatedCustomer();
 
         // Fetch cart items
@@ -42,8 +42,7 @@ public class OrderServiceImpl implements IOrderService {
         Order order = new Order();
         order.setCustomer(customer);
         order.setOrderStatus(ApplicationConstants.ORDER_STATUS_CREATED);
-        order.setPaymentId(orderRequest.paymentId());
-        order.setPaymentStatus(orderRequest.paymentStatus());
+
 
         List<OrderItem> orderItems = cartItems.stream().map(cartItem -> {
             OrderItem item = new OrderItem();

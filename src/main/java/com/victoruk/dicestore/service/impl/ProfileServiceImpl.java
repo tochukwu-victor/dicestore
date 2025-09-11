@@ -54,6 +54,7 @@ public class ProfileServiceImpl implements IProfileService {
         customer = customerRepository.save(customer);
         ProfileResponseDto profileResponseDto = mapCustomerToProfileResponseDto(customer);
         profileResponseDto.setEmailUpdated(isEmailUpdated);
+
         return profileResponseDto;
     }
 
@@ -67,14 +68,6 @@ public class ProfileServiceImpl implements IProfileService {
               new UsernameNotFoundException("User not found"));
 
    }
-
-//   private ProfileResponseDto mapCustomerToProfile(Customer customer){
-//
-//        ProfileResponseDto profileResponseDto = new ProfileResponseDto();
-//
-//       BeanUtils.copyProperties(customer,profileResponseDto);
-//       return  profileResponseDto;
-//   }
 
 
     // Map the customer to the profile response dto

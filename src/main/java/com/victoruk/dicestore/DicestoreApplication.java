@@ -1,6 +1,6 @@
 package com.victoruk.dicestore;
 
-import com.victoruk.dicestore.security.OpenApiProperties;
+import com.victoruk.dicestore.security.openapi.OpenApiProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -14,5 +14,6 @@ public class DicestoreApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(DicestoreApplication.class, args);
 	}
+
 
 }

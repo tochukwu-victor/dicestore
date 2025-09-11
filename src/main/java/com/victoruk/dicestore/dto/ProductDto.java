@@ -21,4 +21,8 @@ public class ProductDto {
     private BigDecimal price;
 
     private int popularity;
+
+    private BigDecimal discountPercentage;
+
+    private BigDecimal finalPrice;
 }

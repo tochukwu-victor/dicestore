@@ -1,4 +1,5 @@
 package com.victoruk.dicestore.security;
+import com.victoruk.dicestore.config.CorsProperties;
 import com.victoruk.dicestore.filter.JWTTokenValidatorFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -27,13 +28,16 @@ import java.util.List;
 public class SecurityConfig {
 
     private final List<String> publicPaths;
+    private final CorsProperties corsProperties;
+
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/h2-console/**") // Allow CSRF bypass for H2
-                        .disable()
-                )
+    public SecurityFilterChain filterChain(HttpSecurity http
+                                      ) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+
+
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.sameOrigin()) // Allow iframe for H2 UI
                 )
@@ -75,7 +79,7 @@ public class SecurityConfig {
     public CorsConfigurationSource configurationSource() {
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("http://localhost:5173"));
+        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
         config.setAllowedMethods(Collections.singletonList("*"));
         config.setAllowedHeaders(Collections.singletonList("*"));
         config.setAllowCredentials(true);

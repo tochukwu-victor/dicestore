@@ -18,8 +18,8 @@ public class OrderController {
     private final IOrderService iOrderService;
 
     @PostMapping
-    public ResponseEntity<String> createOrder(@RequestBody  OrderRequestDto requestDto) {
-        iOrderService.createOrder(requestDto);
+    public ResponseEntity<String> createOrder() {
+        iOrderService.createOrder();
         return ResponseEntity.ok("Order created successfully!");
     }
 

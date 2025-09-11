@@ -1,8 +1,7 @@
-package com.victoruk.dicestore.security;
+package com.victoruk.dicestore.security.openapi;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 @Data
 @ConfigurationProperties(prefix = "openapi")

@@ -31,16 +31,6 @@ public class Order extends BaseEntity {
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
-    @Size(max = 200)
-    @NotNull
-    @Column(name = "payment_id", nullable = false, length = 200)
-    private String paymentId;
-
-    @Size(max = 50)
-    @NotNull
-    @Column(name = "payment_status", nullable = false, length = 50)
-    private String paymentStatus;
-
     @Size(max = 50)
     @NotNull
     @Column(name = "order_status", nullable = false, length = 50)

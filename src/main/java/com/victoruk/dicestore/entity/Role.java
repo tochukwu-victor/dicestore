@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Getter
 @Setter
@@ -19,4 +22,8 @@ public class Role extends BaseEntity {
     @NonNull
     @Column(name = "name", nullable = false, length = 50)
     private String name;
+
+    @ManyToMany(mappedBy = "roles")
+    private Set<Customer> customers = new HashSet<>();
+
 }

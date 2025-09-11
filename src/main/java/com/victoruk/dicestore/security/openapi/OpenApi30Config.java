@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.security;
+package com.victoruk.dicestore.security.openapi;
 
 
 import io.swagger.v3.oas.models.Components;
