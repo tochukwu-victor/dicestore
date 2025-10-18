@@ -8,7 +8,6 @@ import com.victoruk.dicestore.password.ForgotPasswordRequestDto;
 import com.victoruk.dicestore.password.ForgotPasswordResponseDto;
 import com.victoruk.dicestore.password.ResetPasswordRequestDto;
 import com.victoruk.dicestore.password.ResetPasswordResponseDto;
-import org.apache.http.auth.InvalidCredentialsException;
 
 public interface IAuthService {
     LoginResponseDto login(LoginRequestDto loginRequestDto);
@@ -17,4 +16,5 @@ public interface IAuthService {
 
     ForgotPasswordResponseDto forgotPassword(ForgotPasswordRequestDto requestDto);
     ResetPasswordResponseDto resetPassword(ResetPasswordRequestDto requestDto);
+
 }

@@ -1,3 +1,5 @@
+
+
 package com.victoruk.dicestore.service.impl;
 
 import com.victoruk.dicestore.dto.AddressDto;
@@ -22,26 +24,30 @@ import org.springframework.stereotype.Service;
 public class ProfileServiceImpl implements IProfileService {
 
     private final CustomerRepository customerRepository;
-    private final AddressRepository addressRepository; // <-- Add this
+    private final AddressRepository addressRepository;
 
     @Override
     public ProfileResponseDto getProfile() {
-
         Customer customer = getAuthenticatedCustomer();
+        log.info("Fetched profile for customer [{}]", customer.getEmail());
         return mapCustomerToProfileResponseDto(customer);
     }
 
     @Override
     public ProfileResponseDto updateProfile(ProfileRequestDto profileRequestDto) {
-
         Customer customer = getAuthenticatedCustomer();
+        log.info("Updating profile for customer [{}]", customer.getEmail());
+
         boolean isEmailUpdated = !customer.getEmail().equals(profileRequestDto.getEmail().trim());
         BeanUtils.copyProperties(profileRequestDto, customer);
+
         Address address = customer.getAddress();
         if (address == null) {
+            log.debug("No address found for customer [{}], creating a new one", customer.getEmail());
             address = new Address();
             address.setCustomer(customer);
         }
+
         address.setStreet(profileRequestDto.getStreet());
         address.setCity(profileRequestDto.getCity());
         address.setState(profileRequestDto.getState());
@@ -49,37 +55,56 @@ public class ProfileServiceImpl implements IProfileService {
         address.setCountry(profileRequestDto.getCountry());
         customer.setAddress(address);
 
-        // Persist the address first to ensure it's saved and attached
-        addressRepository.save(address); // <-- you need this repository injected
+        // Persist the address
+        addressRepository.save(address);
+        log.debug("Saved/updated address for customer [{}]: {}, {}, {}",
+                customer.getEmail(), address.getStreet(), address.getCity(), address.getCountry());
+
         customer = customerRepository.save(customer);
+        log.info("Profile successfully updated for customer [{}]", customer.getEmail());
+
         ProfileResponseDto profileResponseDto = mapCustomerToProfileResponseDto(customer);
         profileResponseDto.setEmailUpdated(isEmailUpdated);
+
+        if (isEmailUpdated) {
+            log.warn("Customer [{}] updated their email. Old: [{}], New: [{}]",
+                    customer.getEmail(), customer.getEmail(), profileRequestDto.getEmail());
+        }
 
         return profileResponseDto;
     }
 
-
     // Get the authenticated customer
-    public Customer getAuthenticatedCustomer(){
+    public Customer getAuthenticatedCustomer() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+        log.debug("Fetching authenticated customer with email [{}]", email);
 
-       Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-       String email = authentication.getName();
-      return customerRepository.findByEmail(email).orElseThrow(() ->
-              new UsernameNotFoundException("User not found"));
-
-   }
-
+        return customerRepository.findByEmail(email).orElseThrow(() -> {
+            log.error("Customer with email [{}] not found in database", email);
+            return new UsernameNotFoundException("User not found");
+        });
+    }
 
     // Map the customer to the profile response dto
     private ProfileResponseDto mapCustomerToProfileResponseDto(Customer customer) {
         ProfileResponseDto profileResponseDto = new ProfileResponseDto();
         BeanUtils.copyProperties(customer, profileResponseDto);
+
         if (customer.getAddress() != null) {
             AddressDto addressDto = new AddressDto();
             BeanUtils.copyProperties(customer.getAddress(), addressDto);
             profileResponseDto.setAddress(addressDto);
+            log.debug("Mapped address for customer [{}]: {}, {}, {}",
+                    customer.getEmail(),
+                    customer.getAddress().getStreet(),
+                    customer.getAddress().getCity(),
+                    customer.getAddress().getCountry());
+        } else {
+            log.debug("No address found to map for customer [{}]", customer.getEmail());
         }
+
         return profileResponseDto;
     }
-
 }
+

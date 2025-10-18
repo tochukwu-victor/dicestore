@@ -1,6 +1,7 @@
 package com.victoruk.dicestore.exception;
 
 import com.victoruk.dicestore.dto.ErrorResponseDto;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +15,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
+import java.nio.file.AccessDeniedException;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @RestControllerAdvice
 @Slf4j
@@ -91,22 +90,33 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponseDto, HttpStatus.BAD_REQUEST);
     }
 
-
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponseDto> handleBadCredentialsException(
             BadCredentialsException exception, WebRequest webRequest) {
+
         log.warn("Authentication failed: {}", exception.getMessage());
 
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(
                 webRequest.getDescription(false),
                 HttpStatus.UNAUTHORIZED,
-                "Invalid username or password",  // 👈 normalized message
+                "Authentication failed. Please check your credentials.", // 👈 generic, user-friendly
                 LocalDateTime.now()
         );
 
         return new ResponseEntity<>(errorResponseDto, HttpStatus.UNAUTHORIZED);
     }
 
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex, HttpServletRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", 403);
+        body.put("error", "Forbidden");
+        body.put("message", "You don’t have permission to perform this action.");
+        body.put("path", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
 
 
 

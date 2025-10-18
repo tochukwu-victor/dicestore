@@ -1,6 +1,5 @@
 package com.victoruk.dicestore.service.impl;
 
-
 import com.victoruk.dicestore.dto.*;
 import com.victoruk.dicestore.entity.Customer;
 import com.victoruk.dicestore.entity.Role;
@@ -11,10 +10,9 @@ import com.victoruk.dicestore.service.IAuthService;
 import com.victoruk.dicestore.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.auth.InvalidCredentialsException;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.authentication.password.CompromisedPasswordDecision;
@@ -23,9 +21,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -44,25 +39,30 @@ public class AuthServiceImpl implements IAuthService {
     private final PasswordEncoder passwordEncoder;
     private final CompromisedPasswordChecker compromisedPasswordChecker;
     private final RoleRepository roleRepository;
-    private final EmailService emailService; // assume you have this
+    private final EmailService emailService;
     private final PasswordResetTokenRepository tokenRepository;
 
+
+    @Value("${app.frontend.url}")
+    private String frontendBaseUrl;
 
 
     @Override
     public LoginResponseDto login(LoginRequestDto loginRequestDto) {
-        log.info("Attempting login for username: {}", loginRequestDto.username());
+        log.info("🔐 Attempting login for email: {}", loginRequestDto.email());
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequestDto.username(),
+                        loginRequestDto.email(),
                         loginRequestDto.password()
                 )
         );
 
         var loggedInUser = (Customer) authentication.getPrincipal();
+        log.debug("✅ Authentication successful for email: {}, roles: {}",
+                loggedInUser.getEmail(),
+                authentication.getAuthorities());
 
-        // Build UserDto
         var userDto = new UserDto();
         BeanUtils.copyProperties(loggedInUser, userDto);
         userDto.setRoles(authentication.getAuthorities().stream()
@@ -76,15 +76,18 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         String jwtToken = jwtUtil.generateJwtToken(authentication);
-        log.info("Authentication successful for user: {}", authentication.getName());
+        log.info("🎫 JWT issued for email: {}", authentication.getName());
 
         return new LoginResponseDto("OK", userDto, jwtToken);
     }
 
     @Override
     public RegisterResponseDto register(RegisterRequestDto registerRequestDto) {
+        log.info("📝 Attempting registration for email: {}", registerRequestDto.getEmail());
+
         CompromisedPasswordDecision decision = compromisedPasswordChecker.check(registerRequestDto.getPassword());
         if (decision.isCompromised()) {
+            log.warn("⚠️ Registration failed: compromised password for email {}", registerRequestDto.getEmail());
             return new RegisterResponseDto("Choose a stronger password");
         }
 
@@ -94,6 +97,7 @@ public class AuthServiceImpl implements IAuthService {
         );
 
         if (existingCustomer.isPresent()) {
+            log.error("❌ Registration failed: email or mobile already registered for {}", registerRequestDto.getEmail());
             throw new IllegalArgumentException("Email or mobile number already registered");
         }
 
@@ -101,54 +105,72 @@ public class AuthServiceImpl implements IAuthService {
         BeanUtils.copyProperties(registerRequestDto, customer);
         customer.setPasswordHash(passwordEncoder.encode(registerRequestDto.getPassword()));
 
-        Role role = roleRepository.findByName("ROLE_USER")
-                .orElseThrow(() -> new RuntimeException("Default role not found in database"));
 
-        customer.setRoles(Set.of(role));
+        Role defaultRole = roleRepository.findByName("ROLE_USER")
+                .orElseGet(() -> {
+                    Role newRole = new Role();
+                    newRole.setName("ROLE_USER");
+                    return roleRepository.save(newRole);
+                });
+        customer.setRoles(Set.of(defaultRole));
+
         customerRepository.save(customer);
 
+        log.info("✅ Registration successful for email: {}", registerRequestDto.getEmail());
         return new RegisterResponseDto("Registration successful");
     }
 
+//    Role defaultRole = roleRepository.findByName("ROLE_USER")
+//            .orElseThrow(() -> new RuntimeException("Default role not found"));
+//customer.setRoles(Set.of(defaultRole));
+
+
     @Override
     public ForgotPasswordResponseDto forgotPassword(ForgotPasswordRequestDto requestDto) {
+        log.info("🔑 Processing forgot password request for email: {}", requestDto.email());
+
         Customer customer = customerRepository.findByEmail(requestDto.email())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    log.error("❌ Forgot password failed: user not found for email {}", requestDto.email());
+                    return new UsernameNotFoundException("User not found");
+                });
 
         String token = UUID.randomUUID().toString();
         LocalDateTime expiry = LocalDateTime.now().plusMinutes(30);
 
-        // check if user already has a token
         PasswordResetToken resetToken = tokenRepository.findByCustomer(customer)
                 .orElse(new PasswordResetToken());
 
         resetToken.setToken(token);
         resetToken.setCustomer(customer);
         resetToken.setExpiryDate(expiry);
+        tokenRepository.save(resetToken);
 
-        tokenRepository.save(resetToken); // will update if exists
-
-//        String resetLink = "http://localhost:8080/api/v1/auth/reset-password?token=" + token;
         emailService.sendResetPasswordEmail(
                 customer.getEmail(),
                 customer.getName(),
-                "http://localhost:8080/api/v1/auth/reset-password?token=" + token
-//                "Click the link to reset your password: " + resetLink
+                frontendBaseUrl + token
         );
 
+        log.info("📧 Password reset link sent to {}", customer.getEmail());
         return new ForgotPasswordResponseDto(
                 "Password reset link sent to email " + customer.getEmail(),
                 "OK"
         );
     }
 
-
     @Override
     public ResetPasswordResponseDto resetPassword(ResetPasswordRequestDto requestDto) {
+        log.info("🔄 Attempting password reset with token: {}", requestDto.token());
+
         PasswordResetToken resetToken = tokenRepository.findByToken(requestDto.token())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired token"));
+                .orElseThrow(() -> {
+                    log.error("❌ Invalid or expired token used for password reset");
+                    return new IllegalArgumentException("Invalid or expired token");
+                });
 
         if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            log.error("⏰ Password reset failed: token expired for email {}", resetToken.getCustomer().getEmail());
             throw new IllegalArgumentException("Token has expired");
         }
 
@@ -156,10 +178,10 @@ public class AuthServiceImpl implements IAuthService {
         customer.setPasswordHash(passwordEncoder.encode(requestDto.newPassword()));
         customerRepository.save(customer);
 
-        tokenRepository.delete(resetToken); // invalidate token
+        tokenRepository.delete(resetToken);
+        log.info("✅ Password reset successful for email {}", customer.getEmail());
 
         return new ResetPasswordResponseDto("Password reset successful", "OK");
     }
-
 
 }

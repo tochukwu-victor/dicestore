@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 @Setter
 public class ProductRequestDto {
 
+    private Long categoryId;
     private String name;
 
     private String description;

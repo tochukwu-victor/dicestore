@@ -1,9 +1,11 @@
 package com.victoruk.dicestore.service.impl;
 
 import com.victoruk.dicestore.dto.ProductRequestDto;
+import com.victoruk.dicestore.entity.Category;
 import com.victoruk.dicestore.entity.Discount;
 import com.victoruk.dicestore.entity.Product;
 import com.victoruk.dicestore.dto.ProductDto;
+import com.victoruk.dicestore.repository.CategoryRepository;
 import com.victoruk.dicestore.repository.DiscountRepository;
 import com.victoruk.dicestore.repository.ProductRepository;
 import com.victoruk.dicestore.service.IProductService;
@@ -27,6 +29,7 @@ public class ProductServiceImpl implements IProductService {
 
     private final ProductRepository productRepository;
     private final DiscountRepository discountRepository;
+    private final CategoryRepository categoryRepository;
 
 
     @Override
@@ -61,17 +64,6 @@ public class ProductServiceImpl implements IProductService {
         log.info("Fetched {} products", productList.size());
         return productList;
     }
-
-
-//    @Override
-//    public List<ProductDto> getProducts() {
-//        log.info("Fetching all products...");
-//        List<ProductDto> productList = productRepository.findAll().stream()
-//                .map(this::transformToDto)
-//                .collect(Collectors.toList());
-//        log.info("Fetched {} products", productList.size());
-//        return productList;
-//    }
 
     @Override
     public ProductDto getProductById(Long productId) {
@@ -125,7 +117,16 @@ public class ProductServiceImpl implements IProductService {
     public ProductDto createProduct(ProductRequestDto productRequestDto) {
         log.info("Attempting to create product: {}", productRequestDto);
 
+        Category category = null;
+        if (productRequestDto.getCategoryId() != null) {
+            category = categoryRepository.findById(productRequestDto.getCategoryId())
+                    .orElse(null); // optional: just ignore if not found
+        }
+
+
         Product product = toEntity(productRequestDto);
+
+        product.setCategory(category);
 
         try {
             Product saved = productRepository.save(product);

@@ -1,4 +1,5 @@
-package com.victoruk.dicestore.controller;
+package com.victoruk.dicestore.controller.admin;
+
 
 import com.victoruk.dicestore.dto.DiscountRequestDto;
 import com.victoruk.dicestore.dto.DiscountResponseDto;
@@ -11,9 +12,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/discounts")
+@RequestMapping("/api/v1/admin/discounts")
 @RequiredArgsConstructor
-public class DiscountController {
+public class AdminDiscountController {
 
     private final IDiscountService discountService;
 
@@ -26,4 +27,6 @@ public class DiscountController {
     public ResponseEntity<List<DiscountResponseDto>> getDiscountsByProduct(@PathVariable Long productId) {
         return ResponseEntity.ok(discountService.getDiscountsByProduct(productId));
     }
+
+
 }

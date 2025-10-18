@@ -6,22 +6,21 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 @Configuration
-public class PublicPathConfig {
+public class      PublicPathConfig {
 
     @Bean
     public List<String> publicPaths() {
 
-        return List.of( "/api/v1/products/**",
+        return List.of(
+
+                "/",                     // root is public
+                "/api/v1/products/**",
                 "/api/v1/contacts/**",
                 "/api/v1/auth/**",
-                "/api/v1/discounts/**",
                 "/error",
-                "/v3/api-docs/**",
                 "/swagger-ui.html",
                 "/swagger-ui/**",
-                "/h2-console/**"
-//                "/api/v1/csrf-token"
-
+                "/v3/api-docs/**"
         );
 
     }

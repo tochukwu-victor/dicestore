@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,12 +19,12 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -36,19 +37,15 @@ public class SecurityConfig {
                                       ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-
-
-                .headers(headers -> headers
-                        .frameOptions(frame -> frame.sameOrigin()) // Allow iframe for H2 UI
-                )
-//                .csrf( csrfConfig -> csrfConfig.csrfTokenRepository(
-//                CookieCsrfTokenRepository.withHttpOnlyFalse())
-//                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 .cors(corsConfig -> corsConfig.configurationSource(configurationSource()))
                 .authorizeHttpRequests((requests) -> {
                     publicPaths
                             .forEach(path -> requests.requestMatchers(path).permitAll());
-                    requests.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
+
+                    requests.requestMatchers("/api/v1/admin/**").hasAnyRole("USER", "ADMIN");
+                    requests.requestMatchers("/eazystore/actuator/**").hasRole("DEV");
+//                    requests.requestMatchers("/swagger-ui.html", "/swagger-ui/**",
+//                            "/v3/api-docs/**").hasAnyRole("DEV", "USER", "ADMIN");
                     requests.anyRequest().hasAnyRole("USER", "ADMIN");
                 })
                 .addFilterBefore(new JWTTokenValidatorFilter(publicPaths), BasicAuthenticationFilter.class)

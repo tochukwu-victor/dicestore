@@ -1,32 +1,35 @@
 package com.victoruk.dicestore.controller;
 
-
-import com.victoruk.dicestore.dto.OrderRequestDto;
 import com.victoruk.dicestore.dto.OrderResponseDto;
 import com.victoruk.dicestore.service.IOrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
 public class OrderController {
 
-    private final IOrderService iOrderService;
+    private final IOrderService orderService;
 
     @PostMapping
     public ResponseEntity<String> createOrder() {
-        iOrderService.createOrder();
+        log.info("🛒 Creating new order...");
+        orderService.createOrder();
+        log.info("✅ Order created successfully!");
         return ResponseEntity.ok("Order created successfully!");
     }
 
-
     @GetMapping
     public ResponseEntity<List<OrderResponseDto>> loadCustomerOrders() {
-        return ResponseEntity.ok(iOrderService.getCustomerOrders());
+        log.info("📦 Loading customer orders...");
+        List<OrderResponseDto> orders = orderService.getCustomerOrders();
+        log.info("✅ Loaded {} orders for customer", orders.size());
+        return ResponseEntity.ok(orders);
     }
-
 }

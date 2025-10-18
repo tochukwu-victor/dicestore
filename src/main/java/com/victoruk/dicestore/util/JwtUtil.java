@@ -30,7 +30,7 @@ public class JwtUtil {
         SecretKey secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         Customer fetchedUser = (Customer) authentication.getPrincipal();
         jwt = Jwts.builder().issuer("Dice Store").subject("JWT Token")
-                .claim("username", fetchedUser.getEmail())
+                .claim("username", fetchedUser.getName())
                 .claim("email", fetchedUser.getEmail())
                 .claim("mobileNumber", fetchedUser.getMobileNumber())
                 .claim("roles" , authentication.getAuthorities().stream().

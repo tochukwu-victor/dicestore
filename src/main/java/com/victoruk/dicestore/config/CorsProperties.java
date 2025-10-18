@@ -12,5 +12,7 @@ import java.util.List;
 @Configuration
 @ConfigurationProperties(prefix = "app.cors")
 public class CorsProperties {
+
     private List<String> allowedOrigins;
+
 }

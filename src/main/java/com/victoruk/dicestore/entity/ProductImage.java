@@ -24,4 +24,11 @@ public class ProductImage {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
     private Product product;
+
+    public ProductImage(String url, String publicId, Product product) {
+        this.url = url;
+        this.publicId = publicId;
+        this.product = product;
+    }
+
 }
