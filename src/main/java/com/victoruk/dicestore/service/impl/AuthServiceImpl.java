@@ -3,11 +3,13 @@ package com.victoruk.dicestore.service.impl;
 import com.victoruk.dicestore.dto.*;
 import com.victoruk.dicestore.entity.Customer;
 import com.victoruk.dicestore.entity.Role;
+import com.victoruk.dicestore.exception.CustomerAlreadyExistsException;
+import com.victoruk.dicestore.exception.WeakPasswordException;
 import com.victoruk.dicestore.password.*;
 import com.victoruk.dicestore.repository.CustomerRepository;
 import com.victoruk.dicestore.repository.RoleRepository;
 import com.victoruk.dicestore.service.IAuthService;
-import com.victoruk.dicestore.util.JwtUtil;
+import com.victoruk.dicestore.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -17,7 +19,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.authentication.password.CompromisedPasswordDecision;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,7 +48,7 @@ public class AuthServiceImpl implements IAuthService {
 
 
     @Override
-    public LoginResponseDto login(LoginRequestDto loginRequestDto) {
+    public String login(LoginRequestDto loginRequestDto) {
         log.info("🔐 Attempting login for email: {}", loginRequestDto.email());
 
         Authentication authentication = authenticationManager.authenticate(
@@ -59,28 +59,13 @@ public class AuthServiceImpl implements IAuthService {
         );
 
         var loggedInUser = (Customer) authentication.getPrincipal();
-        log.debug("✅ Authentication successful for email: {}, roles: {}",
-                loggedInUser.getEmail(),
-                authentication.getAuthorities());
-
-        var userDto = new UserDto();
-        BeanUtils.copyProperties(loggedInUser, userDto);
-        userDto.setRoles(authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(",")));
-
-        if (loggedInUser.getAddress() != null) {
-            var addressDto = new AddressDto();
-            BeanUtils.copyProperties(loggedInUser.getAddress(), addressDto);
-            userDto.setAddress(addressDto);
-        }
 
         String jwtToken = jwtUtil.generateJwtToken(authentication);
+
         log.info("🎫 JWT issued for email: {}", authentication.getName());
 
-        return new LoginResponseDto("OK", userDto, jwtToken);
+        return jwtToken;
     }
-
     @Override
     public RegisterResponseDto register(RegisterRequestDto registerRequestDto) {
         log.info("📝 Attempting registration for email: {}", registerRequestDto.getEmail());
@@ -88,7 +73,7 @@ public class AuthServiceImpl implements IAuthService {
         CompromisedPasswordDecision decision = compromisedPasswordChecker.check(registerRequestDto.getPassword());
         if (decision.isCompromised()) {
             log.warn("⚠️ Registration failed: compromised password for email {}", registerRequestDto.getEmail());
-            return new RegisterResponseDto("Choose a stronger password");
+            throw new WeakPasswordException("Choose a stronger password"); // ← fixed here
         }
 
         Optional<Customer> existingCustomer = customerRepository.findByEmailOrMobileNumber(
@@ -98,13 +83,12 @@ public class AuthServiceImpl implements IAuthService {
 
         if (existingCustomer.isPresent()) {
             log.error("❌ Registration failed: email or mobile already registered for {}", registerRequestDto.getEmail());
-            throw new IllegalArgumentException("Email or mobile number already registered");
+            throw new CustomerAlreadyExistsException("Email or mobile number already registered");
         }
 
         Customer customer = new Customer();
         BeanUtils.copyProperties(registerRequestDto, customer);
         customer.setPasswordHash(passwordEncoder.encode(registerRequestDto.getPassword()));
-
 
         Role defaultRole = roleRepository.findByName("ROLE_USER")
                 .orElseGet(() -> {
@@ -117,12 +101,8 @@ public class AuthServiceImpl implements IAuthService {
         customerRepository.save(customer);
 
         log.info("✅ Registration successful for email: {}", registerRequestDto.getEmail());
-        return new RegisterResponseDto("Registration successful");
+        return new RegisterResponseDto("Registration successful"); // ← only success returns here
     }
-
-//    Role defaultRole = roleRepository.findByName("ROLE_USER")
-//            .orElseThrow(() -> new RuntimeException("Default role not found"));
-//customer.setRoles(Set.of(defaultRole));
 
 
     @Override

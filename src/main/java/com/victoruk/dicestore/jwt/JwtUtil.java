@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.util;
+package com.victoruk.dicestore.jwt;
 
 
 import com.victoruk.dicestore.constant.ApplicationConstants;

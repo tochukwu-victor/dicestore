@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.filter;
+package com.victoruk.dicestore.jwt;
 
 import com.victoruk.dicestore.constant.ApplicationConstants;
 import io.jsonwebtoken.Claims;

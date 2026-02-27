@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.security.openapi;
+package com.victoruk.dicestore.openapi;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

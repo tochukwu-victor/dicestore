@@ -1,6 +1,7 @@
 package com.victoruk.dicestore.exception;
 
 import com.victoruk.dicestore.dto.ErrorResponseDto;
+import com.victoruk.dicestore.dto.RegisterResponseDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -116,6 +117,18 @@ public class GlobalExceptionHandler {
         body.put("message", "You don’t have permission to perform this action.");
         body.put("path", request.getRequestURI());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(WeakPasswordException.class)
+    public ResponseEntity<RegisterResponseDto> handleWeakPassword(WeakPasswordException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new RegisterResponseDto(ex.getMessage()));
+    }
+
+    @ExceptionHandler(CustomerAlreadyExistsException.class)
+    public ResponseEntity<RegisterResponseDto> handleCustomerAlreadyExists(CustomerAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new RegisterResponseDto(ex.getMessage()));
     }
 
 

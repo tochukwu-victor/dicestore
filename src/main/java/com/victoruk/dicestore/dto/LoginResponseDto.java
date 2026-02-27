@@ -1,5 +1,3 @@
 package com.victoruk.dicestore.dto;
 
-public record LoginResponseDto(String message ,UserDto user, String jwtToken) {}
-
-
+public record LoginResponseDto(String message) {}

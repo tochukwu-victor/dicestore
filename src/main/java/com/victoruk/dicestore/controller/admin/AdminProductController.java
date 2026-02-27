@@ -132,36 +132,6 @@ public class AdminProductController {
     }
 
 
-//    // ✅ Upload product image
-//    @PostMapping("/{productId}/upload-image")
-//    public ResponseEntity<?> uploadProductImage(@PathVariable Long productId,
-//                                                @RequestParam("file") MultipartFile file) throws Exception {
-//        long start = System.currentTimeMillis();
-//        log.info("Uploading image for product id: {}", productId);
-//
-//        Product product = productRepository.findById(productId)
-//                .orElseThrow(() -> {
-//                    log.error("Product not found with id: {}", productId);
-//                    return new RuntimeException("Product not found");
-//                });
-//
-//        long cloudStart = System.currentTimeMillis();
-//        Map<String, Object> uploadResult = cloudinaryService.upload(file);
-//        long cloudDuration = System.currentTimeMillis() - cloudStart;
-//
-//        String imageUrl = (String) uploadResult.get("secure_url");
-//        String publicId = (String) uploadResult.get("public_id");
-//        log.info("Image uploaded to Cloudinary. publicId: {}, url: {} (took {} ms)", publicId, imageUrl, cloudDuration);
-//
-//        ProductImage image = new ProductImage(imageUrl, publicId, product);
-//        product.getImages().add(image);
-//        productRepository.save(product);
-//
-//        long duration = System.currentTimeMillis() - start;
-//        log.info("Image linked to product id: {} (total {} ms)", productId, duration);
-//
-//        return ResponseEntity.ok(new ProductImageResponse(imageUrl, publicId));
-//    }
 
     // ✅ Delete product image
     @DeleteMapping("/images/{publicId}")

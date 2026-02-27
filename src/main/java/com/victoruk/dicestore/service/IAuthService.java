@@ -10,7 +10,7 @@ import com.victoruk.dicestore.password.ResetPasswordRequestDto;
 import com.victoruk.dicestore.password.ResetPasswordResponseDto;
 
 public interface IAuthService {
-    LoginResponseDto login(LoginRequestDto loginRequestDto);
+    String login(LoginRequestDto loginRequestDto);
     RegisterResponseDto register(RegisterRequestDto registerRequestDto);
 
 

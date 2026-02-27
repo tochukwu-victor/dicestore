@@ -1,6 +1,6 @@
 package com.victoruk.dicestore;
 
-import com.victoruk.dicestore.security.openapi.OpenApiProperties;
+import com.victoruk.dicestore.openapi.OpenApiProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

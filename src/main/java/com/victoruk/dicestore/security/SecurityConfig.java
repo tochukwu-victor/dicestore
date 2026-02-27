@@ -1,6 +1,6 @@
 package com.victoruk.dicestore.security;
 import com.victoruk.dicestore.config.CorsProperties;
-import com.victoruk.dicestore.filter.JWTTokenValidatorFilter;
+import com.victoruk.dicestore.jwt.JWTTokenValidatorFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
