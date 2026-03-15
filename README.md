@@ -1,158 +1,249 @@
-# 🛒 Dicestore – E-Commerce Backend
+# Dicestore — E-Commerce Backend
 
-**Dicestore** is a modern, production-ready **Java Spring Boot backend** for a full-stack e-commerce application. It supports user authentication, product management, email verification, and auditing—all designed to integrate smoothly with a future React frontend.
+![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
----
+Dicestore is a modular, production-ready e-commerce backend built with Java Spring Boot. Features include JWT authentication,
+Paystack payment processing with webhook verification, Cloudinary image storage, async email notifications, and a domain-driven architecture.
 
-## 📁 Project Structure
+## Tech Stack
 
-dicestore/
-│
-├── src/main/java/com/victoruk/dicestore/
-├── cloudservice/ # Handles image uploads to services like Cloudinary
-├── config/ # Spring configuration (security, auditing, etc.)
-├── constant/ # Application-wide constants
-├── controller/ # REST API endpoints (Auth, Profile, Product, etc.)
-├── dto/ # Data Transfer Objects for request and response mapping
-├── entity/ # JPA entities (Customer, Product, Order, etc.)
-├── exception/ # Global and custom exception handling
-├── filter/ # JWT filter and request filtering logic
-├── repository/ # Spring Data JPA repositories
-├── security/ # Security config and authentication logic
-├── service/ # Business logic (ProfileService, AuthService, etc.)
-├── util/ # Helper classes (JwtUtil, validators, etc.)
-├── application.properties / .env
-└── README.md
+- **Java 21** + **Spring Boot 3.5**
+- **MySQL** (dev) / **PostgreSQL** (prod)
+- **Flyway** — database migrations
+- **Spring Security** + **JWT** — HttpOnly cookie authentication
+- **Paystack** — payment processing with webhook verification
+- **Cloudinary** — product image storage
+- **JavaMail** + **Thymeleaf** — async email notifications
+- **OpenAPI 3.1 / Swagger** — auto-generated API documentation from annotations
 
-markdown
-Copy
-Edit
+## Features
 
----
+- User registration, login and JWT authentication (HttpOnly cookie)
+- Password reset via email token
+- Product and category management with Cloudinary image upload
+- Cart management with line totals, grand total and quantity controls
+- Order creation with stock validation and optimistic locking
+- Paystack payment integration with HMAC-SHA512 webhook signature verification
+- Idempotent webhook handling to prevent duplicate payment processing
+- Payment states: `PENDING`, `SUCCESS`, `FAILED`, `REFUNDED`
+- Order states: `PENDING_PAYMENT`, `PAID`, `CONFIRMED`, `CANCELLED`, `REFUNDED`
+- Cart cleared only after confirmed payment via webhook
+- Async order confirmation email after successful payment
+- Admin order management — confirm and cancel orders
+- Customer self-cancellation for unpaid orders only
+- Product discount management
+- Customer contact/messaging system
+- Global exception handling with dedicated exceptions per domain
 
-## ⚙️ Tech Stack
+## Project Structure
+```
+com.victoruk.dicestore
+├── admin          # Admin controllers (products, orders, categories, discounts, images)
+├── auth           # Registration, login, JWT
+├── cart           # Cart entity, service, controller
+├── common         # Shared config, exceptions, security, base entity
+├── contact        # Customer contact messages
+├── discount       # Product discounts
+├── infrastructure # Email, Cloudinary, JWT filter
+├── order          # Order entity, service, controller
+├── passwordreset  # Forgot/reset password flow
+├── payment        # Paystack service, webhook, payment entity
+├── product        # Products, categories, images
+└── user           # User profile and address
+```
 
-- **Java 17**
-- **Spring Boot 3**
-- **Spring Security** (JWT-based)
-- **Spring Data JPA + MySQL**
-- **JavaMailSender** (for email verification)
-- **Cloudinary** (image upload)
-- **Lombok** (boilerplate reduction)
-- **Flyway** (database migration)
-- **Auditing** (createdBy, updatedBy)
-
----
-
-## 🚀 Features Implemented
-
-- ✅ User Registration & Login (JWT Auth)
-- ✅ Role-based access control (User/Admin)
-- ✅ Email verification with HTML templates
-- ✅ Product and image management via Cloudinary
-- ✅ Address & profile management
-- ✅ Auditing with `created_by`, `updated_by`
-- ✅ Exception handling with meaningful responses
-- 🚧 Frontend (React) coming soon
-
----
-
-## 🧪 How to Run
+## Getting Started
 
 ### Prerequisites
-- Java 17
-- Maven
-- MySQL (running and database created)
-- Cloudinary account (optional)
-- Gmail App Password (for email)
+- Java 21
+- MySQL 8
+- Maven 3.9+
 
-### 1. Clone the project
+### Setup
 
+1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/dicestore.git
+git clone https://github.com/tochukwu-victor/dicestore.git
 cd dicestore
+```
+
 2. Set environment variables
-Create a .env file or use application.properties. Example:
 
-properties
-Copy
-Edit
-# application.properties
-spring.datasource.url=jdbc:mysql://localhost:3306/dicestore
-spring.datasource.username=root
-spring.datasource.password=yourpassword
+**Database**
+```
+DATABASE_PASSWORD=your_db_password
+```
 
-spring.mail.username=your-email@gmail.com
-spring.mail.password=your-app-password
-spring.mail.host=smtp.gmail.com
-spring.mail.port=587
-spring.mail.protocol=smtp
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
+**Email**
+```
+GMAIL_USERNAME=your_email
+GMAIL_APP_PASSWORD=your_app_password
+```
 
-cloudinary.cloud_name=your_cloud_name
-cloudinary.api_key=your_api_key
-cloudinary.api_secret=your_api_secret
-3. Run the application
-bash
-Copy
-Edit
-./mvnw spring-boot:run
-🔐 Authentication
-Login returns a JWT token
+**Payment**
+```
+PAYSTACK_SECRET_KEY=your_paystack_key
+PAYSTACK_WEBHOOK_SECRET=your_webhook_secret
+```
 
-Include it in Authorization: Bearer <token> headers for authenticated routes.
+**Cloudinary**
+```
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
 
-Roles: ROLE_USER, ROLE_ADMIN
+3. Build and run with dev profile
+```bash
+mvn clean install
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
 
-📬 Email Support
-Users receive an email verification link when updating emails.
+4. Access Swagger UI
+```
+http://localhost:8080/swagger-ui/index.html
+```
 
-Email template uses Thymeleaf but can be replaced by a frontend HTML string passed to the backend.
+## Payment Flow
+```
+1. POST /api/v1/orders                     → Create order (status: PENDING_PAYMENT)
+2. POST /api/v1/payments/initialize/{id}   → Call Paystack API, receive payment URL
+3. User completes payment on Paystack hosted page
+4. Paystack fires webhook → POST /api/v1/payments/webhook
+5. Backend verifies HMAC-SHA512 signature
+6. Order → PAID, cart cleared, confirmation email sent asynchronously
+```
 
-🔎 Auditing
-Using Spring Data JPA's auditing:
+## API Overview
 
-created_at, updated_at
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/register` | Register new user |
+| POST | `/api/v1/auth/login` | Login (sets HttpOnly JWT cookie) |
+| POST | `/api/v1/auth/logout` | Logout |
+| POST | `/api/v1/auth/forgot-password` | Request password reset |
+| POST | `/api/v1/auth/reset-password` | Reset password using token |
 
-created_by, updated_by
+### Cart
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/cart/add` | Add item to cart |
+| GET | `/api/v1/cart` | View cart with line totals and grand total |
+| PATCH | `/api/v1/cart/items/{cartItemId}/quantity` | Update item quantity (+1 / -1) |
+| DELETE | `/api/v1/cart/remove/{cartItemId}` | Remove item from cart |
+| DELETE | `/api/v1/cart/clear` | Clear entire cart |
 
-Automatically filled using AuditorAware + SecurityContextHolder
+### Orders
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/orders` | Create order from cart |
+| GET | `/api/v1/orders` | Get my orders |
+| PATCH | `/api/v1/orders/{orderId}/cancel` | Cancel my order (`PENDING_PAYMENT` only) |
 
-🧩 Future Plans
-Add full React frontend
+### Payments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/payments/initialize/{orderId}` | Initialize Paystack payment |
+| POST | `/api/v1/payments/webhook` | Paystack webhook receiver (public) |
 
-Payment integration (e.g., Stripe)
+### Products & Categories
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/products` | Get all products |
+| GET | `/api/v1/products/{id}` | Get product by ID |
+| GET | `/api/v1/categories` | Get all categories |
+| GET | `/api/v1/categories/{id}` | Get category by ID |
 
-Order tracking
+### Admin
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/admin/products` | Create product |
+| PUT | `/api/v1/admin/products/{id}` | Update product |
+| DELETE | `/api/v1/admin/products/{id}` | Delete product |
+| POST | `/api/v1/admin/products/with-images` | Create product with images |
+| POST | `/api/v1/admin/products/{productId}/images` | Upload product image |
+| DELETE | `/api/v1/admin/products/{productId}/images/{publicId}` | Delete product image |
+| POST | `/api/v1/admin/categories` | Create category |
+| PUT | `/api/v1/admin/categories/{id}` | Update category |
+| DELETE | `/api/v1/admin/categories/{id}` | Delete category |
+| POST | `/api/v1/admin/discounts` | Create discount |
+| GET | `/api/v1/admin/discounts/product/{productId}` | Get discounts by product |
+| GET | `/api/v1/admin/orders` | Get all pending orders |
+| PATCH | `/api/v1/admin/orders/{orderId}/confirm` | Confirm order |
+| PATCH | `/api/v1/admin/orders/{orderId}/cancel` | Cancel order |
+| GET | `/api/v1/admin/messages` | Get all open messages |
+| PATCH | `/api/v1/admin/messages/{contactId}/close` | Close a message |
 
-Product reviews
+### Profile
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/profile` | Get current user profile |
+| PUT | `/api/v1/profile` | Update profile and address |
 
-Admin dashboard
+## Example Requests
 
-🛠 Tools You May Use
-Postman / cURL for API testing
+**Register**
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"John","email":"john@example.com","password":"SecurePass123!"}'
+```
 
-MySQL Workbench for DB inspection
+**Add to Cart**
+```bash
+curl -X POST http://localhost:8080/api/v1/cart/add \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"productId":1,"quantity":2}'
+```
 
-Lombok Plugin in your IDE
+**Initialize Payment**
+```bash
+curl -X POST http://localhost:8080/api/v1/payments/initialize/1 \
+  -H "Authorization: Bearer <token>"
+```
 
-Spring Boot DevTools for hot reload
+## Database Migrations
 
-🧑‍💻 Author
-Victor Ukoh
-📧 ukohatochukwuvictor@gmail.com
+| Version | Description |
+|---------|-------------|
+| V1 | Initial schema — users, products, cart, orders |
+| V2 | Add payments table |
+| V3 | Add stock and version columns for optimistic locking |
 
-📄 License
-This project is licensed under the MIT License.
+## Testing
+```bash
+mvn test
+```
 
-⭐️ Support
-Give this project a ⭐️ if you find it helpful!
+## API Documentation
 
-yaml
-Copy
-Edit
+Full API documentation is available via Swagger UI once the application is running:
+http://localhost:8080/swagger-ui/index.html
+```
 
----
+## Roadmap
 
-Let me know if you want this as a downloadable file or want to include usage examples for key endpoints (`/register`, `/login`, etc).
+- [ ] Redis caching for product catalog
+- [ ] Virtual threads (`spring.threads.virtual.enabled=true`)
+- [ ] HikariCP connection pool tuning
+- [ ] Docker support
+- [ ] Refund flow implementation
+
+## Note
+
+Dicestore is a production-ready e-commerce backend built for
+Chukwu Dice Stores — a wholesale and retail business based in Lagos, Nigeria.
+
+## Frontend
+
+The Next.js frontend connects to this API using the JWT cookie for authentication and consumes all endpoints listed above:
+[dicestore-frontend](https://github.com/tochukwu-victor/dicestore-frontend)
+
+## License
+
+This project is licensed under the [Apache 2.0 License](LICENSE).
