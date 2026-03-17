@@ -11,7 +11,7 @@
 	<groupId>com.victoruk</groupId>
 	<artifactId>dicestore</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>eazystore</name>
+	<name>dicestore</name>
 	<description>Eazystore Store Ecommerce Application</description>
 	<url/>
 	<licenses>
@@ -70,11 +70,11 @@
         			<scope>runtime</scope>
         		</dependency>
 
-        <!--		<dependency>-->
-        <!--			<groupId>com.h2database</groupId>-->
-        <!--			<artifactId>h2</artifactId>-->
-        <!--			<scope>runtime</scope>-->
-        <!--		</dependency>-->
+        		<dependency>
+        			<groupId>com.h2database</groupId>
+        			<artifactId>h2</artifactId>
+        			<scope>test</scope>
+        		</dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -200,13 +200,39 @@
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
                 <version>3.4.4</version>
+
                 <configuration>
+                    <!-- Base image for the container -->
+                    <from>
+                        <image>eclipse-temurin:21-jre</image>
+                    </from>
+
+                    <!-- Destination image -->
                     <to>
-                        <!-- Change this to your DockerHub username/project -->
-                        <image>docker.io/victoruk11/${project.artifactId}:v1.2</image>
+                        <image>docker.io/victoruk11/${project.artifactId}</image>
+                        <tags>
+                            <tag>v1.3</tag>
+                        </tags>
                     </to>
+
+                    <!-- Container settings -->
+                    <container>
+                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+
+                        <!-- Exposed port (matches your Spring Boot server port) -->
+                        <ports>
+                            <port>8081</port>
+                        </ports>
+
+                        <!-- JVM flags for container memory limits -->
+                        <jvmFlags>
+                            <jvmFlag>-Xms512m</jvmFlag>
+                            <jvmFlag>-Xmx512m</jvmFlag>
+                        </jvmFlags>
+                    </container>
                 </configuration>
             </plugin>
+
 		</plugins>
 	</build>
 
