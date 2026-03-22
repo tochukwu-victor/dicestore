@@ -11,6 +11,8 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.security.SecurityScheme.Type;
 import java.util.Map;
+
+import io.swagger.v3.oas.models.servers.Server;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springdoc.core.customizers.OpenApiCustomizer;
@@ -95,7 +97,9 @@ public class OpenApi30Config {
         return new OpenAPI()
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(components)
-                .info(info);
+                .info(info)
+                .addServersItem(new Server().url("/").description("Current server"));
+        
     }
 
 }

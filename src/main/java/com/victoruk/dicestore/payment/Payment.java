@@ -26,6 +26,12 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_id", nullable = false)
     private Long paymentId;
 
+    // Optimistic locking version field
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
+
     @NotNull
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false, unique = true)

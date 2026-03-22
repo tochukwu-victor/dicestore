@@ -1,4 +1,5 @@
 package com.victoruk.dicestore.product.service;
+
 import com.victoruk.dicestore.infrastructure.cloudService.CloudinaryService;
 import com.victoruk.dicestore.product.dto.ProductRequestDto;
 import com.victoruk.dicestore.product.category.entity.Category;
@@ -10,10 +11,10 @@ import com.victoruk.dicestore.discount.repository.DiscountRepository;
 import com.victoruk.dicestore.product.productImage.ProductImage;
 import com.victoruk.dicestore.product.repository.ProductRepository;
 import com.victoruk.dicestore.discount.service.DiscountUtils;
+import com.victoruk.dicestore.common.exception.ProductNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,31 +34,37 @@ public class ProductServiceImpl implements IProductService {
     private final CategoryRepository categoryRepository;
     private final CloudinaryService cloudinaryService;
 
+    // ─────────────────────────────────────────────────────────────
+    // GET ALL PRODUCTS
+    // ─────────────────────────────────────────────────────────────
     @Override
     public List<ProductDto> getProducts() {
-        log.info("Fetching all products...");
+        log.info("Fetching all products");
 
         List<Product> products = productRepository.findAll();
 
+        // One query for all active discounts — fixes N+1
+        Map<Long, Discount> discountMap = discountRepository
+                .findAllActiveDiscounts()
+                .stream()
+                .collect(Collectors.toMap(
+                        d -> d.getProduct().getProductId(),
+                        d -> d
+                ));
+
         List<ProductDto> productList = products.stream().map(product -> {
-            // ✅ Fetch discount for each product
-            Discount discount = discountRepository.findActiveDiscountByProductId(product.getProductId())
-                    .orElse(null);
-
+            Discount discount = discountMap.get(product.getProductId());
             boolean isActive = DiscountUtils.calculateActiveStatus(discount);
-
-            // ✅ Calculate final price
             BigDecimal finalPrice = calculateFinalPrice(product.getPrice(), discount, isActive);
 
-            // ✅ Build DTO
             ProductDto dto = new ProductDto();
             dto.setProductId(product.getProductId());
             dto.setName(product.getName());
             dto.setDescription(product.getDescription());
             dto.setPrice(product.getPrice());
+            dto.setStock(product.getStock());
             dto.setDiscountPercentage(isActive ? discount.getPercentage() : BigDecimal.ZERO);
             dto.setFinalPrice(finalPrice);
-
             return dto;
         }).collect(Collectors.toList());
 
@@ -65,90 +72,57 @@ public class ProductServiceImpl implements IProductService {
         return productList;
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // GET PRODUCT BY ID
+    // ─────────────────────────────────────────────────────────────
     @Override
     public ProductDto getProductById(Long productId) {
-        log.info("Fetching product by ID={}", productId);
+        log.info("Fetching product ID={}", productId);
 
-        // ✅ Fetch product
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> {
-                    log.warn("Product with ID={} not found", productId);
-                    return new RuntimeException("Product not found");
+                    log.warn("Product ID={} not found", productId);
+                    return new ProductNotFoundException("Product Not Found " + productId);
+
                 });
 
-        // ✅ Fetch potential discount
-        Discount discount = discountRepository.findActiveDiscountByProductId(productId)
+        Discount discount = discountRepository
+                .findActiveDiscountByProductId(productId)
                 .orElse(null);
 
-        // ✅ Ensure discount active status is recalculated with utility
         boolean isActive = DiscountUtils.calculateActiveStatus(discount);
-
-        // ✅ Calculate final price considering discount validity
         BigDecimal finalPrice = calculateFinalPrice(product.getPrice(), discount, isActive);
 
-        // ✅ Build DTO
-        ProductDto productDto = new ProductDto();
-        productDto.setProductId(product.getProductId());
-        productDto.setName(product.getName());
-        productDto.setDescription(product.getDescription());
-        productDto.setPrice(product.getPrice());
-        productDto.setDiscountPercentage(isActive ? discount.getPercentage() : BigDecimal.ZERO);
-        productDto.setFinalPrice(finalPrice);
+        ProductDto dto = new ProductDto();
+        dto.setProductId(product.getProductId());
+        dto.setName(product.getName());
+        dto.setDescription(product.getDescription());
+        dto.setPrice(product.getPrice());
+        dto.setStock(product.getStock());
+        dto.setDiscountPercentage(isActive ? discount.getPercentage() : BigDecimal.ZERO);
+        dto.setFinalPrice(finalPrice);
 
-        log.info("Fetched product: {}", productDto);
-        return productDto;
+        log.info("Fetched product ID={}", productId);
+        return dto;
     }
 
-    private BigDecimal calculateFinalPrice(BigDecimal price, Discount discount, boolean isActive) {
-        if (!isActive) {
-            return price;
-        }
-        BigDecimal discountAmount = price.multiply(
-                discount.getPercentage().divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
-        );
-        return price.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
-    }
-
-
-
-
-
+    // ─────────────────────────────────────────────────────────────
+    // CREATE PRODUCT (with optional images)
+    // ─────────────────────────────────────────────────────────────
     @Override
-    public ProductDto createProduct(ProductRequestDto productRequestDto) {
-        log.info("Attempting to create product: {}", productRequestDto);
-
-        Category category = null;
-        if (productRequestDto.getCategoryId() != null) {
-            category = categoryRepository.findById(productRequestDto.getCategoryId())
-                    .orElse(null); // optional: just ignore if not found
-        }
-
-
-        Product product = toEntity(productRequestDto);
-
-        product.setCategory(category);
-
-        try {
-            Product saved = productRepository.save(product);
-            log.info("Product created successfully with ID={}", saved.getProductId());
-            return toDto(saved);
-        } catch (Exception ex) {
-            log.error("Error creating product with name={} and price={}: {}",
-                    product.getName(), product.getPrice(), ex.getMessage(), ex);
-            throw ex;
-        }
-    }
-
     @Transactional
     public ProductDto createProduct(ProductRequestDto dto, List<MultipartFile> files) {
-        Product product = toEntity(dto);
+        log.info("Creating product: {}", dto.getName());
 
-        // inline category resolution
+        Category category = null;
         if (dto.getCategoryId() != null) {
-            Category category = categoryRepository.findById(dto.getCategoryId())
-                    .orElse(null);
-            product.setCategory(category);
+            category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Category not found with ID=" + dto.getCategoryId()));
         }
+
+        Product product = toEntity(dto);
+        product.setCategory(category);
 
         Product saved = productRepository.save(product);
 
@@ -162,59 +136,103 @@ public class ProductServiceImpl implements IProductService {
             productRepository.save(saved);
         }
 
-        List<String> imageUrls = saved.getImages().stream()
-                .map(ProductImage::getImageUrl)
-                .toList();
-
-        ProductDto productDto = new ProductDto();
-        productDto.setProductId(saved.getProductId());
-        productDto.setName(saved.getName());
-        productDto.setDescription(saved.getDescription());
-        productDto.setPrice(saved.getPrice());
-        productDto.setImageUrls(imageUrls);
-        return productDto;
+        log.info("Product created successfully ID={}", saved.getProductId());
+        return toDto(saved);
     }
 
 
     @Override
-    public ProductDto updateProduct(Long productId, ProductRequestDto productRequestDto) {
-        log.info("Updating product ID={} with data: {}", productId, productRequestDto);
+    public ProductDto createProduct(ProductRequestDto dto) {
+        log.info("Creating product: {}", dto.getName());
+
+        Category category = null;
+        if (dto.getCategoryId() != null) {
+            category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Category not found with ID=" + dto.getCategoryId()));
+        }
+
+        Product product = toEntity(dto);
+        product.setCategory(category);
+        Product saved = productRepository.save(product);
+
+        log.info("Product created successfully ID={}", saved.getProductId());
+        return toDto(saved);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // UPDATE PRODUCT
+    // ─────────────────────────────────────────────────────────────
+    @Override
+    @Transactional
+    public ProductDto updateProduct(Long productId, ProductRequestDto dto) {
+        log.info("Updating product ID={}", productId);
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> {
-                    log.warn("Product with ID={} not found", productId);
-                    return new RuntimeException("Product not found");
+                    log.warn("Product ID={} not found for update", productId);
+                    return new ProductNotFoundException("Product Not Found " + productId);
+
                 });
 
-        product.setName(productRequestDto.getName());
-        product.setDescription(productRequestDto.getDescription());
-        product.setPrice(productRequestDto.getPrice());
+        product.setName(dto.getName());
+        product.setDescription(dto.getDescription());
+        product.setPrice(dto.getPrice());
+        product.setStock(dto.getStock());
 
-        try {
-            Product updated = productRepository.save(product);
-            log.info("Product updated successfully ID={}", updated.getProductId());
-            return toDto(updated);
-        } catch (Exception ex) {
-            log.error("Error updating product ID={}: {}", productId, ex.getMessage(), ex);
-            throw ex;
+        if (dto.getCategoryId() != null) {
+            Category category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Category not found with ID=" + dto.getCategoryId()));
+            product.setCategory(category);
         }
+
+        Product updated = productRepository.save(product);
+        log.info("Product updated successfully ID={}", updated.getProductId());
+        return toDto(updated);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // DELETE PRODUCT
+    // ─────────────────────────────────────────────────────────────
     @Override
     public void deleteProduct(Long productId) {
         log.info("Deleting product ID={}", productId);
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> {
-                    log.warn("Product with ID={} not found for deletion", productId);
-                    return new RuntimeException("Product not found");
+                    log.warn("Product ID={} not found for deletion", productId);
+                    return new ProductNotFoundException("Product Not Found " + productId);
                 });
 
         productRepository.delete(product);
         log.info("Deleted product ID={}", productId);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // PRIVATE HELPERS
+    // ─────────────────────────────────────────────────────────────
+    private BigDecimal calculateFinalPrice(BigDecimal price,
+                                           Discount discount,
+                                           boolean isActive) {
+        if (!isActive || discount == null) {
+            return price;
+        }
+        BigDecimal discountAmount = price.multiply(
+                discount.getPercentage()
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
+        );
+        return price.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+    }
 
+    private Product toEntity(ProductRequestDto dto) {
+        Product product = new Product();
+        product.setName(dto.getName());
+        product.setDescription(dto.getDescription());
+        product.setPrice(dto.getPrice());
+        product.setStock(dto.getStock());
+        return product;
+    }
 
     private ProductDto toDto(Product product) {
         ProductDto dto = new ProductDto();
@@ -222,29 +240,12 @@ public class ProductServiceImpl implements IProductService {
         dto.setName(product.getName());
         dto.setDescription(product.getDescription());
         dto.setPrice(product.getPrice());
+        dto.setStock(product.getStock());
+        dto.setImageUrls(
+                product.getImages().stream()
+                        .map(ProductImage::getImageUrl)
+                        .toList()
+        );
         return dto;
-    }
-
-    private ProductDto toDtowithfile(Product product, List<MultipartFile> files) {
-        ProductDto dto = new ProductDto();
-        dto.setProductId(product.getProductId());
-        dto.setName(product.getName());
-        dto.setDescription(product.getDescription());
-        dto.setPrice(product.getPrice());
-        return dto;
-    }
-
-    private Product toEntity(ProductRequestDto productRequestDto) {
-        Product product = new Product();
-        product.setName(productRequestDto.getName());
-        product.setDescription(productRequestDto.getDescription());
-        product.setPrice(productRequestDto.getPrice());
-        return product;
-    }
-
-    private ProductDto transformToDto(Product product) {
-        ProductDto productDto = new ProductDto();
-        BeanUtils.copyProperties(product, productDto);
-        return productDto;
     }
 }

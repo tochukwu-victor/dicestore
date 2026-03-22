@@ -1,3 +1,4 @@
+
 package com.victoruk.dicestore.payment;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,12 +18,14 @@ import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
@@ -39,11 +42,7 @@ public class PaystackService {
     private final CartItemRepository cartItemRepository;
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate;
-
-    // ------------------------------------------------------------------
-    // Initialize Payment
-    // ------------------------------------------------------------------
+    private final WebClient webClient;
 
     public InitializePaymentResponseDto initializePayment(Long orderId, String email) {
         log.info("Initializing Paystack payment for order [{}], email [{}]", orderId, email);
@@ -51,19 +50,25 @@ public class PaystackService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId.toString()));
 
-        // Guard: don't re-initialize a paid order
         if (order.getOrderStatus() == OrderStatus.PAID) {
             throw new OrderAlreadyPaidException(orderId);
         }
 
-        // Amount in kobo (Paystack requires smallest currency unit)
+        // [ADDED] Check if a pending payment already exists for this order.
+        // This handles retries — if the user previously got a checkout URL but
+        // never completed payment, retrying would cause a duplicate entry error
+        // on the payments.order_id unique constraint. Instead, we reuse the
+        // existing reference and get a fresh authorization URL from Paystack.
+        Optional<Payment> existingPayment = paymentRepository.findByOrder_OrderId(orderId);
+        if (existingPayment.isPresent() && existingPayment.get().getStatus() == PaymentStatus.PENDING) {
+            log.info("Reusing existing pending payment for order [{}]", orderId);
+            String existingReference = existingPayment.get().getPaystackReference();
+            return reinitializeWithPaystack(order, email, existingReference);
+        }
+
         long amountInKobo = order.getTotalPrice()
                 .multiply(BigDecimal.valueOf(100))
                 .longValue();
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(appProperties.paystack().secretKey());
-        headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> body = Map.of(
                 "email", email,
@@ -72,22 +77,9 @@ public class PaystackService {
                 "metadata", Map.of("order_id", orderId)
         );
 
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
         try {
-            ResponseEntity<PaystackInitializeResponse> response = restTemplate.postForEntity(
-                    appProperties.paystack().initializeUrl(),
-                    request,
-                    PaystackInitializeResponse.class
-            );
-
-            PaystackInitializeResponse paystackResponse = response.getBody();
-
-            if (paystackResponse == null || !paystackResponse.status()) {
-                log.error("Paystack initialization failed for order [{}]: {}", orderId,
-                        paystackResponse != null ? paystackResponse.message() : "null response");
-                throw new PaymentInitializationException("Payment initialization failed. Please try again.");
-            }
+            // Delegated the WebClient call to the private callPaystack() helper
+            PaystackInitializeResponse paystackResponse = callPaystack(body);
 
             // Persist a PENDING payment record
             Payment payment = new Payment();
@@ -106,10 +98,9 @@ public class PaystackService {
             );
 
         } catch (OrderAlreadyPaidException | PaymentInitializationException e) {
-            // Let our own exceptions propagate cleanly — don't wrap them
             throw e;
         } catch (Exception e) {
-            log.error("Paystack API call failed for order [{}]", orderId, e);
+            log.error("Paystack API call failed for order [{}] after retries", orderId, e);
             throw new PaymentInitializationException("Payment service is currently unavailable. Please try again later.");
         }
     }
@@ -123,13 +114,11 @@ public class PaystackService {
     public void handleWebhook(String rawPayload, String paystackSignature) {
         log.info("Received Paystack webhook");
 
-        // Step 1: Verify signature
         if (!isValidSignature(rawPayload, paystackSignature)) {
             log.warn("Invalid Paystack webhook signature — possible spoofed request");
             return;
         }
 
-        // Step 2: Parse payload
         PaystackWebhookPayload payload;
         try {
             payload = objectMapper.readValue(rawPayload, PaystackWebhookPayload.class);
@@ -140,7 +129,6 @@ public class PaystackService {
 
         log.info("Webhook event [{}] for reference [{}]", payload.event(), payload.data().reference());
 
-        // Step 3: Only handle charge.success and charge.failed
         if (!"charge.success".equals(payload.event()) && !"charge.failed".equals(payload.event())) {
             log.info("Ignoring unhandled webhook event [{}]", payload.event());
             return;
@@ -148,7 +136,6 @@ public class PaystackService {
 
         String reference = payload.data().reference();
 
-        // Step 4: Idempotency check — find existing payment record
         Optional<Payment> existingPayment = paymentRepository.findByPaystackReference(reference);
         if (existingPayment.isEmpty()) {
             log.warn("No payment record found for reference [{}] — ignoring webhook", reference);
@@ -157,7 +144,6 @@ public class PaystackService {
 
         Payment payment = existingPayment.get();
 
-        // Step 5: Skip if already processed (idempotency guard)
         if (payment.getStatus() != PaymentStatus.PENDING) {
             log.info("Payment [{}] already processed with status [{}] — skipping duplicate webhook",
                     reference, payment.getStatus());
@@ -189,11 +175,9 @@ public class PaystackService {
         order.setOrderStatus(OrderStatus.PAID);
         orderRepository.save(order);
 
-        // Clear cart only after confirmed payment
         cartItemRepository.deleteByCartUser(order.getUser());
         log.info("Cart cleared for user [{}] after successful payment", order.getUser().getEmail());
 
-        // Send confirmation email asynchronously
         emailService.sendOrderConfirmationEmail(
                 order.getUser().getEmail(),
                 order.getUser().getName(),
@@ -216,24 +200,78 @@ public class PaystackService {
         log.warn("Order [{}] marked as FAILED due to payment failure", order.getOrderId());
     }
 
-    private boolean isValidSignature(String rawPayload, String paystackSignature) {
+    //Handles retry scenario where a pending payment already exists.
+    // Re-calls Paystack's initialize endpoint with the existing reference to
+    // get a fresh authorization URL without inserting a duplicate payment record.
+    private InitializePaymentResponseDto reinitializeWithPaystack(Order order, String email, String reference) {
+        long amountInKobo = order.getTotalPrice()
+                .multiply(BigDecimal.valueOf(100))
+                .longValue();
+
+        Map<String, Object> body = Map.of(
+                "email", email,
+                "amount", amountInKobo,
+                "reference", reference, // reuse existing reference, not a new one
+                "metadata", Map.of("order_id", order.getOrderId())
+        );
+
         try {
-            Mac mac = Mac.getInstance("HmacSHA512");
-            SecretKeySpec secretKey = new SecretKeySpec(
-                    appProperties.paystack().webhookSecret().getBytes(StandardCharsets.UTF_8),
-                    "HmacSHA512"
+            PaystackInitializeResponse paystackResponse = callPaystack(body);
+            return new InitializePaymentResponseDto(
+                    paystackResponse.data().authorizationUrl(),
+                    paystackResponse.data().reference()
             );
-            mac.init(secretKey);
-            byte[] hash = mac.doFinal(rawPayload.getBytes(StandardCharsets.UTF_8));
-            String computedSignature = HexFormat.of().formatHex(hash);
-            return computedSignature.equals(paystackSignature);
         } catch (Exception e) {
-            log.error("Signature verification failed", e);
+            log.error("Paystack re-initialization failed for order [{}]", order.getOrderId(), e);
+            throw new PaymentInitializationException("Payment service is currently unavailable. Please try again later.");
+        }
+    }
+
+    // Extracted WebClient HTTP call into a reusable private helper.
+    // Used by both the initial payment flow and the re-initialization flow,
+    // keeping auth headers, timeout, and retry config in one place.
+    private PaystackInitializeResponse callPaystack(Map<String, Object> body) {
+        PaystackInitializeResponse paystackResponse = webClient.post()
+                .uri(appProperties.paystack().initializeUrl())
+                .headers(h -> h.setBearerAuth(appProperties.paystack().secretKey()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(PaystackInitializeResponse.class)
+                .timeout(Duration.ofSeconds(5))
+                .retry(1)
+                .block();
+
+        if (paystackResponse == null || !paystackResponse.status()) {
+            throw new PaymentInitializationException("Payment initialization failed. Please try again.");
+        }
+        return paystackResponse;
+    }
+
+    private boolean isValidSignature(String rawPayload, String paystackHeader) {
+        if (paystackHeader == null || rawPayload == null) return false;
+
+        try {
+            byte[] secretBytes = appProperties.paystack().webhookSecret().getBytes(StandardCharsets.UTF_8);
+            SecretKeySpec keySpec = new SecretKeySpec(secretBytes, "HmacSHA512");
+
+            Mac mac = Mac.getInstance("HmacSHA512");
+            mac.init(keySpec);
+
+            byte[] resultBytes = mac.doFinal(rawPayload.getBytes(StandardCharsets.UTF_8));
+            String computedSignature = HexFormat.of().formatHex(resultBytes);
+
+            return MessageDigest.isEqual(
+                    computedSignature.getBytes(StandardCharsets.UTF_8),
+                    paystackHeader.getBytes(StandardCharsets.UTF_8)
+            );
+        } catch (Exception e) {
+            log.error("Security Alert: Possible tampered webhook or config error", e);
             return false;
         }
     }
 
     private String generateReference(Long orderId) {
-        return "DICE-" + orderId + "-" + System.currentTimeMillis();
+        return "DICE-" + orderId + "-" + Instant.now().toEpochMilli();
     }
 }

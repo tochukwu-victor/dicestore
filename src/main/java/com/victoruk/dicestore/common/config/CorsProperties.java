@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.config;
+package com.victoruk.dicestore.common.config;
 
 import lombok.Getter;
 import lombok.Setter;

@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -14,11 +15,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(EmptyCartException.class)
+    public ResponseEntity<ErrorResponseDto> handleEmptyCart(
+            EmptyCartException ex, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponseDto(
+                        request.getDescription(false),
+                        HttpStatus.BAD_REQUEST,
+                        ex.getMessage(),
+                        LocalDateTime.now()
+                ));
+    }
 
     @ExceptionHandler(OrderAlreadyPaidException.class)
     public ResponseEntity<ErrorResponseDto> handleOrderAlreadyPaid(
@@ -40,11 +54,29 @@ public class GlobalExceptionHandler {
         return buildResponse(wr, HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
+
+
     // Helper method to keep response structure consistent
     private ResponseEntity<ErrorResponseDto> buildResponse(WebRequest webRequest, HttpStatus status, String message) {
-        ErrorResponseDto dto = new ErrorResponseDto(webRequest.getDescription(false), status, message, Instant.now());
-        return new ResponseEntity<>(dto, status);
+        ErrorResponseDto dto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                status,
+                message,
+                LocalDateTime.now()
+
+//                Instant.now()
+        );
+        return ResponseEntity
+                .status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(dto);
     }
+
+//    // Helper method to keep response structure consistent
+//    private ResponseEntity<ErrorResponseDto> buildResponse(WebRequest webRequest, HttpStatus status, String message) {
+//        ErrorResponseDto dto = new ErrorResponseDto(webRequest.getDescription(false), status, message, Instant.now());
+//        return new ResponseEntity<>(dto, status);
+//    }
 
     @ExceptionHandler(ProductNotFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleProductNotFound(ProductNotFoundException ex, WebRequest wr) {

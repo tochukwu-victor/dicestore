@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.common.security;
+package com.victoruk.dicestore.auth.service;
 
 import com.victoruk.dicestore.user.entity.User;
 import com.victoruk.dicestore.user.entity.Role;
@@ -30,7 +30,7 @@ public class UsernamePasswordAuthenticationProvider implements  AuthenticationPr
             String username = authentication.getName();
             String pwd = authentication.getCredentials().toString();
 
-            User user = userRepository.findByEmail(username).orElseThrow(
+            User user = userRepository.findByEmailWithRoles(username).orElseThrow(
                     () -> new UsernameNotFoundException(
                             "User details not found for the user: " + username)
             );

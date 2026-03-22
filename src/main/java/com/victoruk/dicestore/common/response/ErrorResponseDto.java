@@ -15,6 +15,9 @@ public class ErrorResponseDto {
     private String apiPath;
     private HttpStatus errorCode;
     private String errorMessage;
+//    private Instant errorTime;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private Instant errorTime;
+    private LocalDateTime errorTime;
+
 }

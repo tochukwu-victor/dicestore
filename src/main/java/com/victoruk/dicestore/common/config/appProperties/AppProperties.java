@@ -22,6 +22,7 @@ public record AppProperties(
             String emailTemplate
     ) {}
 
+
     public record Paystack(
             String secretKey,
             String initializeUrl,

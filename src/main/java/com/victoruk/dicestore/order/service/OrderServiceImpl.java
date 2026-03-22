@@ -1,6 +1,7 @@
 package com.victoruk.dicestore.order.service;
 
 import com.victoruk.dicestore.cart.entity.CartItem;
+import com.victoruk.dicestore.common.exception.EmptyCartException;
 import com.victoruk.dicestore.common.exception.InsufficientStockException;
 import com.victoruk.dicestore.common.exception.OrderCancellationNotAllowedException;
 import com.victoruk.dicestore.common.exception.ResourceNotFoundException;
@@ -35,7 +36,7 @@ public class OrderServiceImpl implements IOrderService {
 
     @Override
     @Transactional
-    public void createOrder() {
+    public OrderResponseDto createOrder() {
         User user = userResolver.getAuthenticatedUser();
         log.info("Starting order creation for customer [{}]", user.getEmail());
 
@@ -43,13 +44,14 @@ public class OrderServiceImpl implements IOrderService {
         List<CartItem> cartItems = cartItemRepository.findByCartUser(user);
         if (cartItems.isEmpty()) {
             log.warn("Customer [{}] attempted to create order with empty cart", user.getEmail());
-            throw new RuntimeException("Cart is empty");
+            throw new EmptyCartException("Cart is empty. Add items before placing an order.");
+
         }
 
         // Create order
         Order order = new Order();
         order.setUser(user);
-        order.setOrderStatus(OrderStatus.PENDING_PAYMENT); // ← fixed from ApplicationConstants string
+        order.setOrderStatus(OrderStatus.PENDING_PAYMENT);
 
         List<OrderItem> orderItems = cartItems.stream().map(cartItem -> {
             Product product = cartItem.getProduct();
@@ -68,7 +70,7 @@ public class OrderServiceImpl implements IOrderService {
             item.setOrder(order);
             item.setProduct(product);
             item.setQuantity(cartItem.getQuantity());
-            item.setPrice(cartItem.getPrice()); // use stored cart price — respects discounts
+            item.setPrice(cartItem.getPrice());
             log.debug("Adding product [{}] x [{}] to order", product.getName(), cartItem.getQuantity());
             return item;
         }).collect(Collectors.toList());
@@ -86,6 +88,7 @@ public class OrderServiceImpl implements IOrderService {
                 order.getOrderId(), user.getEmail(), total);
 
         // Cart is NOT cleared here — only cleared after confirmed payment via webhook
+        return mapToOrderResponseDTO(order);
     }
 
     @Override

@@ -21,6 +21,9 @@ public class Order extends BaseEntity {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    @Column(name = "payment_reference", unique = true)
+    private String paymentReference;
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

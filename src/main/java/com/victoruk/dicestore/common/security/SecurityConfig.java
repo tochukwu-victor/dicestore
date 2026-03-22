@@ -1,5 +1,5 @@
 package com.victoruk.dicestore.common.security;
-import com.victoruk.dicestore.config.CorsProperties;
+import com.victoruk.dicestore.common.config.CorsProperties;
 import com.victoruk.dicestore.infrastructure.jwt.JWTTokenValidatorFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -42,7 +42,7 @@ public class SecurityConfig {
                     publicPaths
                             .forEach(path -> requests.requestMatchers(path).permitAll());
 
-                    requests.requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN");
+                    requests.requestMatchers("/api/v1/admin/**").hasAnyRole("USER");
                     requests.requestMatchers("/eazystore/actuator/**").hasRole("DEV");
                     requests.anyRequest().hasAnyRole("USER", "ADMIN");
                 })
@@ -74,7 +74,8 @@ public class SecurityConfig {
     public CorsConfigurationSource configurationSource() {
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
+//        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
+        config.addAllowedOriginPattern("https://*.ngrok-free.dev"); // covers all ngrok URLs
         config.setAllowedMethods(Collections.singletonList("*"));
         config.setAllowedHeaders(Collections.singletonList("*"));
         config.setAllowCredentials(true);

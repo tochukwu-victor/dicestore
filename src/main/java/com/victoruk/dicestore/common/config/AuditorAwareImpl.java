@@ -1,4 +1,4 @@
-package com.victoruk.dicestore.config;
+package com.victoruk.dicestore.common.config;
 
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Component;

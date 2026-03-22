@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +28,8 @@ public class AdminCategoryController {
             @ApiResponse(responseCode = "403", description = "Access denied - Admin only")
     })
     public ResponseEntity<CategoryDto> createCategory(@RequestBody CategoryRequestDto dto) {
-        return ResponseEntity.ok(categoryService.createCategory(dto));
+        CategoryDto created = categoryService.createCategory(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created); // 201, not 200
     }
 
     @PutMapping("/{id}")
