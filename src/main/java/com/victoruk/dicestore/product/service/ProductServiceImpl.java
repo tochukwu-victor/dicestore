@@ -20,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,7 +42,9 @@ public class ProductServiceImpl implements IProductService {
     public List<ProductDto> getProducts() {
         log.info("Fetching all products");
 
-        List<Product> products = productRepository.findAll();
+
+        // Use the join fetch query
+        List<Product> products = productRepository.findAllWithCategoryAndImages();
 
         // One query for all active discounts — fixes N+1
         Map<Long, Discount> discountMap = discountRepository
@@ -56,20 +59,21 @@ public class ProductServiceImpl implements IProductService {
             Discount discount = discountMap.get(product.getProductId());
             boolean isActive = DiscountUtils.calculateActiveStatus(discount);
             BigDecimal finalPrice = calculateFinalPrice(product.getPrice(), discount, isActive);
+            BigDecimal discountPercentage = isActive ? discount.getPercentage() : BigDecimal.ZERO;
 
-            ProductDto dto = new ProductDto();
-            dto.setProductId(product.getProductId());
-            dto.setName(product.getName());
-            dto.setDescription(product.getDescription());
-            dto.setPrice(product.getPrice());
-            dto.setStock(product.getStock());
-            dto.setDiscountPercentage(isActive ? discount.getPercentage() : BigDecimal.ZERO);
-            dto.setFinalPrice(finalPrice);
-            return dto;
+            return toDto(product, discountPercentage, finalPrice);
         }).collect(Collectors.toList());
 
         log.info("Fetched {} products", productList.size());
         return productList;
+    }
+
+    public List<Product> searchProducts(String keyword) {
+        if (keyword == null || keyword.trim().length() < 2) {
+            return Collections.emptyList(); // prevent useless queries
+        }
+
+        return productRepository.findByNameContainingIgnoreCase(keyword);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -92,18 +96,9 @@ public class ProductServiceImpl implements IProductService {
 
         boolean isActive = DiscountUtils.calculateActiveStatus(discount);
         BigDecimal finalPrice = calculateFinalPrice(product.getPrice(), discount, isActive);
+        BigDecimal discountPercentage = isActive ? discount.getPercentage() : BigDecimal.ZERO;
 
-        ProductDto dto = new ProductDto();
-        dto.setProductId(product.getProductId());
-        dto.setName(product.getName());
-        dto.setDescription(product.getDescription());
-        dto.setPrice(product.getPrice());
-        dto.setStock(product.getStock());
-        dto.setDiscountPercentage(isActive ? discount.getPercentage() : BigDecimal.ZERO);
-        dto.setFinalPrice(finalPrice);
-
-        log.info("Fetched product ID={}", productId);
-        return dto;
+        return toDto(product, discountPercentage, finalPrice);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -137,28 +132,9 @@ public class ProductServiceImpl implements IProductService {
         }
 
         log.info("Product created successfully ID={}", saved.getProductId());
-        return toDto(saved);
+        return toDto(saved, BigDecimal.ZERO, saved.getPrice());
     }
 
-
-    @Override
-    public ProductDto createProduct(ProductRequestDto dto) {
-        log.info("Creating product: {}", dto.getName());
-
-        Category category = null;
-        if (dto.getCategoryId() != null) {
-            category = categoryRepository.findById(dto.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException(
-                            "Category not found with ID=" + dto.getCategoryId()));
-        }
-
-        Product product = toEntity(dto);
-        product.setCategory(category);
-        Product saved = productRepository.save(product);
-
-        log.info("Product created successfully ID={}", saved.getProductId());
-        return toDto(saved);
-    }
 
     // ─────────────────────────────────────────────────────────────
     // UPDATE PRODUCT
@@ -172,7 +148,6 @@ public class ProductServiceImpl implements IProductService {
                 .orElseThrow(() -> {
                     log.warn("Product ID={} not found for update", productId);
                     return new ProductNotFoundException("Product Not Found " + productId);
-
                 });
 
         product.setName(dto.getName());
@@ -188,9 +163,20 @@ public class ProductServiceImpl implements IProductService {
         }
 
         Product updated = productRepository.save(product);
+
+        // Preserve existing discount on update — don't reset it to zero
+        Discount discount = discountRepository
+                .findActiveDiscountByProductId(productId)
+                .orElse(null);
+
+        boolean isActive = DiscountUtils.calculateActiveStatus(discount);
+        BigDecimal finalPrice = calculateFinalPrice(updated.getPrice(), discount, isActive);
+        BigDecimal discountPercentage = isActive ? discount.getPercentage() : BigDecimal.ZERO;
+
         log.info("Product updated successfully ID={}", updated.getProductId());
-        return toDto(updated);
+        return toDto(updated, discountPercentage, finalPrice);
     }
+
 
     // ─────────────────────────────────────────────────────────────
     // DELETE PRODUCT
@@ -234,13 +220,18 @@ public class ProductServiceImpl implements IProductService {
         return product;
     }
 
-    private ProductDto toDto(Product product) {
+
+    private ProductDto toDto(Product product, BigDecimal discountPercentage, BigDecimal finalPrice) {
         ProductDto dto = new ProductDto();
         dto.setProductId(product.getProductId());
+        dto.setCategoryId(product.getCategory().getCategoryId());
+        dto.setCategoryName(product.getCategory().getName());
         dto.setName(product.getName());
         dto.setDescription(product.getDescription());
         dto.setPrice(product.getPrice());
         dto.setStock(product.getStock());
+        dto.setDiscountPercentage(discountPercentage);
+        dto.setFinalPrice(finalPrice);
         dto.setImageUrls(
                 product.getImages().stream()
                         .map(ProductImage::getImageUrl)

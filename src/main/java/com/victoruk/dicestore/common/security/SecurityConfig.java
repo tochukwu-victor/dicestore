@@ -11,6 +11,7 @@ import org.springframework.security.authentication.password.CompromisedPasswordC
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -38,14 +39,24 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(corsConfig -> corsConfig.configurationSource(configurationSource()))
-                .authorizeHttpRequests((requests) -> {
-                    publicPaths
-                            .forEach(path -> requests.requestMatchers(path).permitAll());
 
-                    requests.requestMatchers("/api/v1/admin/**").hasAnyRole("USER");
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .formLogin(form -> form.disable())
+
+                .authorizeHttpRequests((requests) -> {
+                    publicPaths.forEach(path ->
+                            requests.requestMatchers(path).permitAll()
+                    );
+
+                    requests.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
                     requests.requestMatchers("/eazystore/actuator/**").hasRole("DEV");
-                    requests.anyRequest().hasAnyRole("USER", "ADMIN");
+                    requests.anyRequest().authenticated();
                 })
+
                 .addFilterBefore(new JWTTokenValidatorFilter(publicPaths), BasicAuthenticationFilter.class)
                 .build();
     }
@@ -69,13 +80,12 @@ public class SecurityConfig {
         return new HaveIBeenPwnedRestApiPasswordChecker();
     }
 
-    //cors configuration
+
+
     @Bean
     public CorsConfigurationSource configurationSource() {
-
         CorsConfiguration config = new CorsConfiguration();
-//        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
-        config.addAllowedOriginPattern("https://*.ngrok-free.dev"); // covers all ngrok URLs
+        config.setAllowedOrigins(corsProperties.getAllowedOrigins());  // ✅ from properties
         config.setAllowedMethods(Collections.singletonList("*"));
         config.setAllowedHeaders(Collections.singletonList("*"));
         config.setAllowCredentials(true);

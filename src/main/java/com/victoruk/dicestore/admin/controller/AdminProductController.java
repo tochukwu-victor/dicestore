@@ -26,21 +26,6 @@ public class AdminProductController {
 
     private final IProductService iProductService;
 
-    @PostMapping
-    @Operation(summary = "Create a product",
-            description = "Creates a product without images. Use the multipart endpoint to include images on creation.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Product created successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid request body"),
-            @ApiResponse(responseCode = "403", description = "Access denied - Admin only"),
-            @ApiResponse(responseCode = "404", description = "Category not found")
-    })
-    public ResponseEntity<ProductDto> createProduct(@RequestBody ProductRequestDto dto) {
-        log.info("Request to create product: {}", dto.getName());
-        ProductDto created = iProductService.createProduct(dto);
-        log.info("Product created with id: {}", created.getProductId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
-    }
 
     @PostMapping(value = "/with-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create a product with images",
